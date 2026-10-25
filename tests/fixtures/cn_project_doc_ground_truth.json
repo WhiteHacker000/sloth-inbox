@@ -1,0 +1,452 @@
+{
+  "source": {
+    "requested_filename": "CN_Project.pdf",
+    "requested_pdf_found": false,
+    "archived_analysis_title": "CN_Project_Doc.pdf",
+    "archived_source_characters": 22300,
+    "archived_source_lines": 467,
+    "archived_analysis_created_at": "2026-10-25T18:24:18.230144+00:00",
+    "scope_note": "This manually reviewed fixture is based only on the archived extracted text stored for CN_Project_Doc.pdf. The raw PDF was unavailable, and equivalence to CN_Project.pdf has not been established. Evidence line numbers refer to the archived extracted text, not PDF pages.",
+    "matching_policy": "The expected task set contains distinct named work groups and deliverables, not every lower-level acceptance criterion. Matching is one-to-one: one predicted task may match at most one expected task. A broad or compound prediction does not receive credit for multiple independently actionable expected tasks."
+  },
+  "expected_tasks": [
+    {
+      "id": "phase1_task_a_private_lan",
+      "title": "Establish the private LAN and record machine/network details",
+      "evidence": [
+        {
+          "line": 153,
+          "quote": "Connect all available team Macs to the same private Wi-Fi or LAN segment."
+        },
+        {
+          "line": 154,
+          "quote": "Record each Mac's private IPv4 address, subnet mask/prefix, default gateway, active interface name, and MAC address."
+        },
+        {
+          "line": 156,
+          "quote": "Verify basic reachability between every pair of machines using ping."
+        },
+        {
+          "line": 157,
+          "quote": "Create a topology diagram clearly showing the four machine roles and how they are connected."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_task_b_private_dns",
+      "title": "Configure and verify the private DNS server and client resolvers",
+      "evidence": [
+        {
+          "line": 161,
+          "quote": "Create DNS records that resolve:"
+        },
+        {
+          "line": 162,
+          "quote": "Configure at least two other Macs to use Mac 1 as their DNS resolver"
+        },
+        {
+          "line": 179,
+          "quote": "Verify resolution using dig app.teamX.test or nslookup app.teamX.test from a client machine."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_task_c_backend_services",
+      "title": "Build the two HTTP REST backend services",
+      "evidence": [
+        {
+          "line": 183,
+          "quote": "Mac 3 and Mac 4 each run a small HTTP REST backend."
+        },
+        {
+          "line": 198,
+          "quote": "Task C   Build Two Simple Backend Services"
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_task_d_reverse_proxy_load_balancer",
+      "title": "Configure nginx as the reverse proxy and load balancer",
+      "evidence": [
+        {
+          "line": 190,
+          "quote": "Mac 2 runs nginx and acts as the single public entry point."
+        },
+        {
+          "line": 192,
+          "quote": "Use round-robin load balancing (or another clearly explained strategy such as least_conn)."
+        },
+        {
+          "line": 193,
+          "quote": "Verify that repeated requests to the same domain name are served alternately by Backend A and Backend B."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_task_e_https_tls",
+      "title": "Configure HTTPS/TLS and establish client certificate trust",
+      "evidence": [
+        {
+          "line": 196,
+          "quote": "The edge service must serve traffic over HTTPS using a valid certificate."
+        },
+        {
+          "line": 211,
+          "quote": "Create a self-signed certificate for app.teamX.test using OpenSSL"
+        },
+        {
+          "line": 214,
+          "quote": "Add your local CA certificate to the trust store of every client Mac"
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_task_f_http_caching",
+      "title": "Demonstrate HTTP caching behavior",
+      "evidence": [
+        {
+          "line": 220,
+          "quote": "At least one endpoint must demonstrate proper HTTP cache headers"
+        },
+        {
+          "line": 225,
+          "quote": "Demonstrate a repeated request showing that the client reuses cached content, or a conditional request returning 304 Not Modified."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_task_g_protocol_flow_evidence",
+      "title": "Capture and explain the complete protocol flow",
+      "evidence": [
+        {
+          "line": 228,
+          "quote": "Using Wireshark, tcpdump, curl, and browser tools, you must collect evidence that every layer of the stack is working correctly for a single client request."
+        },
+        {
+          "line": 233,
+          "quote": "Layer / Event What You Must Show and Explain"
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_failure_wrong_client_dns",
+      "title": "Demonstrate the wrong-DNS-server client failure scenario",
+      "evidence": [
+        {
+          "line": 247,
+          "quote": "You must deliberately break your setup in the following ways and explain what you observe and why it happens."
+        },
+        {
+          "line": 262,
+          "quote": "Wrong DNS server configured on a client"
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_failure_wrong_dns_record",
+      "title": "Demonstrate the DNS record pointing to a wrong IP scenario",
+      "evidence": [
+        {
+          "line": 266,
+          "quote": "DNS record points to a wrong IP address"
+        },
+        {
+          "line": 268,
+          "quote": "DNS resolution succeeds but the client is sent to the wrong destination."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_failure_one_backend",
+      "title": "Demonstrate service behavior when one backend is stopped",
+      "evidence": [
+        {
+          "line": 270,
+          "quote": "One backend is stopped"
+        },
+        {
+          "line": 271,
+          "quote": "The edge should continue serving requests through the remaining backend"
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_failure_both_backends",
+      "title": "Demonstrate service behavior when both backends are stopped",
+      "evidence": [
+        {
+          "line": 272,
+          "quote": "Both backends are stopped"
+        },
+        {
+          "line": 273,
+          "quote": "the application returns a clear upstream failure (502 Bad Gateway)."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase1_failure_wrong_destination_port",
+      "title": "Demonstrate the wrong destination port failure scenario",
+      "evidence": [
+        {
+          "line": 275,
+          "quote": "Wrong destination port on the client"
+        },
+        {
+          "line": 276,
+          "quote": "The host is reachable but the TCP connection to the service port fails."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase2_extension_a_backup_dns",
+      "title": "Configure a backup DNS resolver and demonstrate resolver failover",
+      "evidence": [
+        {
+          "line": 255,
+          "quote": "Run a second DNS resolver on another Mac (not Mac 1) with the same project DNS records."
+        },
+        {
+          "line": 257,
+          "quote": "Stop the primary DNS service (stop dnsmasq on Mac 1) and show that clients continue to resolve names using the backup."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase2_extension_b_dns_ttl",
+      "title": "Demonstrate DNS TTL expiry, record change, and cache flushing",
+      "evidence": [
+        {
+          "line": 279,
+          "quote": "Set a short, clearly visible TTL (e.g., 30 seconds) on a project DNS record."
+        },
+        {
+          "line": 283,
+          "quote": "Demonstrate flushing the DNS cache manually and observing the immediate change."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase2_extension_c_service_isolation",
+      "title": "Restrict direct client access to backend ports and preserve rollback",
+      "evidence": [
+        {
+          "line": 286,
+          "quote": "Restrict direct access to backend ports (3001 and 3002) so that only Mac 2 (the edge) can reach the backends."
+        },
+        {
+          "line": 291,
+          "quote": "Maintain a rollback copy of any firewall rules and restore the original configuration after the demonstration."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase2_extension_d_backend_ha",
+      "title": "Demonstrate backend health failover and recovery",
+      "evidence": [
+        {
+          "line": 293,
+          "quote": "Configure nginx to detect backend unavailability and route only to the healthy backend."
+        },
+        {
+          "line": 296,
+          "quote": "Restart Backend A and demonstrate that load balancing resumes distributing across both backends."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase2_extension_e_edge_migration",
+      "title": "Configure a standby edge and demonstrate DNS-based migration",
+      "evidence": [
+        {
+          "line": 300,
+          "quote": "Configure a standby nginx on another Mac (can be Mac 3 or Mac 4 temporarily) with the same configuration."
+        },
+        {
+          "line": 302,
+          "quote": "Update the DNS record for app.teamX.test to point to the standby edge machine."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "phase2_extension_f_troubleshooting",
+      "title": "Diagnose the faculty-injected fault systematically",
+      "evidence": [
+        {
+          "line": 312,
+          "quote": "During the evaluation, the faculty will introduce one configuration fault into your running system."
+        },
+        {
+          "line": 316,
+          "quote": "Use systematic diagnosis: check name resolution first, then TCP connectivity, then TLS, then the application layer."
+        }
+      ],
+      "deadline_text": null,
+      "owner": null
+    },
+    {
+      "id": "deliverable_architecture_document",
+      "title": "Prepare and update the architecture document",
+      "evidence": [
+        {
+          "line": 375,
+          "quote": "Architecture Document Phase 1 (before Phase 1 review) +"
+        },
+        {
+          "line": 377,
+          "quote": "updated for Phase 2"
+        }
+      ],
+      "deadline_text": "before Phase 1 review; updated for Phase 2",
+      "owner": null
+    },
+    {
+      "id": "deliverable_configuration_bundle",
+      "title": "Prepare the configuration bundle",
+      "evidence": [
+        {
+          "line": 381,
+          "quote": "Configuration Bundle Phase 1 + Phase 2"
+        },
+        {
+          "line": 382,
+          "quote": "additions"
+        }
+      ],
+      "deadline_text": "Phase 1 + Phase 2 additions",
+      "owner": null
+    },
+    {
+      "id": "deliverable_backend_source_code",
+      "title": "Prepare complete backend source code and helper scripts",
+      "evidence": [
+        {
+          "line": 386,
+          "quote": "Backend Source Code Phase 1 Complete code for both backend applications and any"
+        },
+        {
+          "line": 387,
+          "quote": "helper scripts."
+        }
+      ],
+      "deadline_text": "Phase 1",
+      "owner": null
+    },
+    {
+      "id": "deliverable_evidence_folder",
+      "title": "Organize the Phase 1 and Phase 2 evidence folder",
+      "evidence": [
+        {
+          "line": 388,
+          "quote": "Evidence Folder Phase 1 + Phase 2"
+        },
+        {
+          "line": 389,
+          "quote": "additions"
+        }
+      ],
+      "deadline_text": "Phase 1 + Phase 2 additions",
+      "owner": null
+    },
+    {
+      "id": "deliverable_phase1_checkpoint",
+      "title": "Prepare the Phase 1 checkpoint demonstration",
+      "evidence": [
+        {
+          "line": 394,
+          "quote": "Phase 1 Checkpoint Phase 1 review"
+        },
+        {
+          "line": 395,
+          "quote": "date"
+        }
+      ],
+      "deadline_text": "Phase 1 review date",
+      "owner": null
+    },
+    {
+      "id": "deliverable_phase2_final_report",
+      "title": "Prepare the Phase 2 final report",
+      "evidence": [
+        {
+          "line": 398,
+          "quote": "Phase 2 Final Report Phase 2 review"
+        },
+        {
+          "line": 399,
+          "quote": "date"
+        }
+      ],
+      "deadline_text": "Phase 2 review date",
+      "owner": null
+    },
+    {
+      "id": "deliverable_final_presentation",
+      "title": "Prepare the final presentation and individual viva",
+      "evidence": [
+        {
+          "line": 403,
+          "quote": "Final Presentation Final evaluation"
+        },
+        {
+          "line": 404,
+          "quote": "date"
+        },
+        {
+          "line": 406,
+          "quote": "every team member must participate and answer"
+        },
+        {
+          "line": 407,
+          "quote": "individual viva questions."
+        }
+      ],
+      "deadline_text": "Final evaluation date",
+      "owner": null
+    }
+  ],
+  "expected_events": [],
+  "expected_blockers": [],
+  "expected_named_owners": [],
+  "explicit_calendar_dates": [],
+  "notes": {
+    "event_rationale": "The text describes reviews, evaluation slots, and a final demonstration, but the archived text includes no actual calendar date or time for a scheduled occurrence. Those items are treated as deliverable milestones/tasks rather than date-specific events.",
+    "blocker_rationale": "The failure scenarios are deliberately induced demonstrations and hypothetical system states, not evidence of an existing project condition that blocks progress.",
+    "owner_rationale": "No person or task-specific owner is assigned. Collective references to the team do not identify an individual owner.",
+    "deadline_rationale": "The deliverables table has seven explicit phase/review milestones, but none provides a specific calendar date. These milestone strings are retained as deadline_text evidence, not converted into dates."
+  }
+}

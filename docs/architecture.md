@@ -5,7 +5,7 @@ The first milestone is intentionally a small, synchronous document-analysis appl
 ## Request flow
 
 1. `app.py` loads validated `Settings`, opens the SQLite `DocumentRepository`, and shows Ollama/model availability without blocking the rest of the dashboard.
-2. `document_service.py` validates pasted text or reads explicitly selected UTF-8 `.txt` bytes. It rejects empty, invalidly encoded, unsupported, and oversized input.
+2. `document_service.py` validates pasted text and extracts manually uploaded UTF-8 `.txt`, selectable-text `.pdf`, or `.docx` content in memory. It checks the configured size limit before parsing, validates binary format signatures/container structure, rejects empty or malformed input, and returns plain text to the unchanged analyzer pipeline. PDF OCR is not supported.
 3. `analyzer.py` sends source text to `OllamaClient` with a system instruction that treats document content as untrusted and a Pydantic JSON schema.
 4. The response is parsed and validated as `DocumentAnalysis`. One corrective request is allowed after a malformed or schema-invalid response; further invalid output raises `AnalysisOutputError`.
 5. Only a validated analysis is persisted. The analysis and source text are stored in `analyses`; individual extracted tasks are stored in `tasks` with their source analysis ID.
@@ -20,7 +20,7 @@ Initialization creates `watched_files`, `processing_runs`, `automation_workers`,
 
 SQLite `BEGIN IMMEDIATE` claims serialize concurrent attempts across worker processes. Per-file locks prevent duplicate work within a monitor instance and a process-wide registry prevents multiple worker loops for a folder in the same Python process. Transient model/structured-output errors use exponential backoff capped at five minutes and a configured maximum total attempt count. Permanent file validation/read failures are recorded without repeatedly retrying unchanged input. Expired processing leases are reclaimed or recorded as exhausted failures.
 
-The worker scans only the exact configured directory by default. Recursive traversal is opt-in, symlinks and non-`.txt` files are skipped, and source files are never changed. It logs paths and operational metadata but not prompts or document content. It runs only while the separate process is alive; there is no OS service or persistence after shutdown.
+The worker scans only the exact configured directory by default. Recursive traversal is opt-in, symlinks and non-`.txt` files are skipped, and source files are never changed. This automatic path remains text-only; PDF/DOCX are supported for manual uploads. It logs paths and operational metadata but not prompts or document content. It runs only while the separate process is alive; there is no OS service or persistence after shutdown.
 
 ## Productivity briefing
 
@@ -32,7 +32,7 @@ The worker scans only the exact configured directory by default. Recursive trave
 - `backend/ai.py`: Ollama HTTP API, model availability checks, structured response format, and actionable local-service errors.
 - `backend/prompts.py`: reusable prompts and bounded correction prompt.
 - `backend/schemas.py`: strict Pydantic schemas and controlled task status/priority values.
-- `backend/document_service.py`: plain-text byte and file validation, without inference or database access.
+- `backend/document_service.py`: upload byte validation and local TXT/PDF/DOCX extraction, without inference or database access.
 - `backend/analyzer.py`: model orchestration and output validation, without persistence.
 - `backend/database.py`: parameterized SQLite queries and transactional persistence.
 - `backend/task_service.py`: task state operations.
@@ -43,7 +43,7 @@ The worker scans only the exact configured directory by default. Recursive trave
 
 ## Privacy and trust boundaries
 
-The model receives only documents explicitly supplied in the UI or read from the configured folder by the separate worker and communicates through the configured Ollama endpoint. No prompt or document content is logged by the application. The AI client exposes text generation only, not shell, tool, or filesystem operations. Model output remains untrusted until schema validation succeeds. SQLite stores source text locally to support history, along with the configured folder path, relative filenames, and content hashes; protect the database like the original documents.
+The model receives extracted text only from documents explicitly uploaded/pasted in the UI or read from the configured folder by the separate worker and communicates through the configured Ollama endpoint. PDF/DOCX parsing occurs locally in memory; uploads are not written to arbitrary paths. No prompt or document content is logged by the application. The AI client exposes text generation only, not shell, tool, or filesystem operations. Model output remains untrusted until schema validation succeeds. SQLite stores source text locally to support history, along with the configured folder path, relative filenames, and content hashes; protect the database like the original documents.
 
 ## Extension points
 

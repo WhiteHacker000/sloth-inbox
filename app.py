@@ -10,7 +10,10 @@ from backend.ai import (
     OllamaModelNotFoundError,
     OllamaUnavailableError,
 )
-from backend.analyzer import AnalysisOutputError, analyze_document
+from backend.analyzer import (
+    AnalysisOutputError,
+    analyze_document,
+)
 from backend.briefing import build_daily_briefing
 from backend.config import ConfigurationError, Settings
 from backend.database import DatabaseError, DocumentRepository
@@ -20,15 +23,29 @@ from backend.document_monitor import (
     directory_identifier,
     resolve_input_directory,
 )
-from backend.document_service import DocumentError, read_text_bytes, validate_text
+from backend.document_service import (
+    DocumentError,
+    SUPPORTED_DOCUMENT_EXTENSIONS,
+    extract_document_text,
+    validate_text,
+)
 from backend.schemas import DocumentAnalysis, TaskStatus
 from backend.task_service import TaskService
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-st.set_page_config(page_title="Sloth AI", page_icon="🦥", layout="wide")
-st.title("Sloth AI 🦥")
+st.set_page_config(
+    page_title="Sloth AI",
+    page_icon="🦥",
+    layout="wide",
+)
+style_path = Path(__file__).parent / ".streamlit" / "dashboard.css"
+st.markdown(
+    f"<style>{style_path.read_text(encoding='utf-8')}</style>",
+    unsafe_allow_html=True,
+)
+st.title("Sloth AI", icon="🦥")
 st.caption("Do less. Get more done. Your documents stay on this device.")
 
 try:
@@ -46,19 +63,29 @@ except DatabaseError as exc:
     st.stop()
 
 with st.sidebar:
-    st.header("Local model")
-    st.caption(f"Endpoint: {settings.ollama_base_url}")
-    st.caption(f"Model: {settings.ollama_model}")
+    st.header("Local Model")
     try:
         client.ensure_model_available()
-    except OllamaModelNotFoundError as exc:
-        st.warning(str(exc))
-    except OllamaUnavailableError as exc:
-        st.warning(str(exc))
-    except OllamaError as exc:
-        st.warning(str(exc))
+    except OllamaModelNotFoundError:
+        st.warning(
+            "Ollama is running, but the configured model is unavailable.",
+            icon=":material/download:",
+        )
+    except OllamaUnavailableError:
+        st.warning(
+            "Ollama is unavailable. Start the local service and try again.",
+            icon=":material/cloud_off:",
+        )
+    except OllamaError:
+        st.warning(
+            "The local model could not be checked. Review the Ollama service setup.",
+            icon=":material/warning:",
+        )
     else:
-        st.success("Ollama is available and the configured model is installed.")
+        st.success(
+            "Ollama is available and the configured model is installed.",
+            icon=":material/check_circle:",
+        )
 
 overview_tab, briefing_tab, analyze_tab, tasks_tab, history_tab, automation_tab = st.tabs(
     [
@@ -83,14 +110,15 @@ def show_analysis(analysis: DocumentAnalysis) -> None:
             for task in analysis.tasks:
                 with st.container(border=True):
                     st.markdown(f"**{task.description}**")
+                    st.caption(f"Status · {task.status.replace('_', ' ').title()}")
                     if task.owner:
-                        st.caption(f"Owner: {task.owner}")
+                        st.caption(f"Owner · {task.owner}")
                     if task.deadline_text:
-                        st.caption(f"Deadline: {task.deadline_text}")
+                        st.caption(f"Deadline · {task.deadline_text}")
                     if task.priority:
-                        st.caption(f"Priority: {task.priority.title()}")
+                        st.caption(f"Priority · {task.priority.title()}")
                     if task.evidence:
-                        st.caption(f"Evidence: “{task.evidence}”")
+                        st.caption(f"Source evidence · “{task.evidence}”")
         else:
             st.info("No actionable tasks were identified.")
 
@@ -100,16 +128,16 @@ def show_analysis(analysis: DocumentAnalysis) -> None:
             for event in analysis.events:
                 with st.container(border=True):
                     st.markdown(f"**{event.description}**")
-                    st.caption(f"Date as written: {event.date_text}")
+                    st.caption(f"Date as written · {event.date_text}")
                     if event.evidence:
-                        st.caption(f"Evidence: “{event.evidence}”")
+                        st.caption(f"Source evidence · “{event.evidence}”")
         else:
             st.info("No explicitly dated events were identified.")
 
     st.subheader(f"Potential blockers ({len(analysis.potential_blockers)})")
     if analysis.potential_blockers:
         for blocker in analysis.potential_blockers:
-            st.markdown(f"- {blocker}")
+            st.warning(blocker, icon=":material/warning:")
     else:
         st.info("No potential blockers were identified.")
 
@@ -253,17 +281,39 @@ with briefing_tab:
         )
 
 with analyze_tab:
-    st.subheader("Analyze a plain-text document")
+    st.subheader("Analyze a document")
     st.caption(
-        "Choose a .txt file or paste text. Analysis uses only the configured local Ollama model."
+        "Upload a .txt, .pdf, or .docx file, or paste text. Analysis uses only "
+        "the configured local Ollama model. Scanned PDFs that need OCR are not "
+        "supported yet."
     )
     document_title = st.text_input("Document title (optional)")
     uploaded_file = st.file_uploader(
-        "Upload a .txt file",
-        type=["txt"],
+        "Upload a document (.txt, .pdf, or .docx)",
+        type=[extension.lstrip(".") for extension in SUPPORTED_DOCUMENT_EXTENSIONS],
         help=f"Maximum size: {settings.max_document_size_mb} MB.",
         max_upload_size=settings.max_document_size_mb,
     )
+    uploaded_text: str | None = None
+    upload_error: str | None = None
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.size > settings.max_document_size_bytes:
+                raise DocumentError("The document exceeds the configured size limit.")
+            uploaded_text = extract_document_text(
+                uploaded_file.getvalue(),
+                uploaded_file.name,
+                settings.max_document_size_bytes,
+            )
+        except DocumentError as exc:
+            upload_error = str(exc)
+            st.error(upload_error)
+        else:
+            with st.expander("Preview extracted text"):
+                st.text(uploaded_text[:4000])
+                if len(uploaded_text) > 4000:
+                    st.caption("Preview truncated; the full extracted text will be analyzed.")
+
     pasted_text = st.text_area(
         "Or paste document text",
         height=220,
@@ -277,12 +327,9 @@ with analyze_tab:
                     raise DocumentError(
                         "Choose either an uploaded file or pasted text, not both."
                     )
-                if not uploaded_file.name.lower().endswith(".txt"):
-                    raise DocumentError("Only plain-text .txt files are supported.")
-                source_text = read_text_bytes(
-                    uploaded_file.getvalue(),
-                    settings.max_document_size_bytes,
-                )
+                if upload_error is not None or uploaded_text is None:
+                    raise DocumentError(upload_error or "The uploaded document could not be extracted.")
+                source_text = uploaded_text
                 title = document_title.strip() or uploaded_file.name
             else:
                 source_text = validate_text(
@@ -298,7 +345,17 @@ with analyze_tab:
             analysis_id = repository.save_analysis(source_text, result, title)
             st.session_state["latest_analysis_id"] = analysis_id
             logger.info("Document analysis completed id=%s", analysis_id)
-            st.success("Analysis completed and saved locally.")
+            if not (
+                result.tasks or result.events or result.potential_blockers
+            ):
+                st.warning(
+                    "No tasks, events, or potential blockers were extracted. The "
+                    "document may contain no actionable content, or the model may "
+                    "have missed relevant information. Review the source and summary.",
+                    title="Review extraction",
+                )
+            else:
+                st.success("Analysis completed and saved locally.")
         except (DocumentError, OllamaError, AnalysisOutputError, DatabaseError) as exc:
             logger.warning("Document analysis failed category=%s", type(exc).__name__)
             st.error(str(exc))

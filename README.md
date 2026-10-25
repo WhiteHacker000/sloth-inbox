@@ -6,10 +6,10 @@ Sloth AI is a local-first document-intelligence assistant. It uses an open-weigh
 
 ## Implemented features
 
-- Paste text or upload a UTF-8 `.txt` file (up to the configured size limit).
+- Paste text or upload a UTF-8 `.txt`, selectable-text `.pdf`, or `.docx` file (up to the configured size limit).
 - Analyze documents with a locally running Ollama model.
 - Validate structured results with Pydantic and Ollama's JSON-schema response format.
-- Retry one invalid model response with a corrective prompt, then report a recoverable error.
+- Review schema-valid empty results when the source contains action cues; retry one invalid model response with a corrective prompt, then report a recoverable error.
 - View summaries, tasks, event dates as written, and potential blockers.
 - Save, revisit, and inspect analyses and their original source documents.
 - List tasks, filter by status, complete tasks, and reopen completed tasks.
@@ -28,7 +28,7 @@ app.py                         Streamlit dashboard
 main.py                        Application entry point
 backend/
   config.py                    Validated environment configuration
-  document_service.py          Read-only UTF-8 text validation
+  document_service.py          In-memory TXT, PDF, and DOCX text extraction
   ai.py                        Ollama HTTP client and legacy email API
   prompts.py                   Untrusted-document analysis prompts
   schemas.py                   Pydantic analysis and task models
@@ -44,7 +44,7 @@ data/
   sloth_ai.db                  Created locally on first launch
 ```
 
-The document service, analyzer, model client, and repository are independent of Streamlit. PDF and DOCX extraction, scheduling, email processing, and file modification are not implemented.
+The document service, analyzer, model client, and repository are independent of Streamlit. PDF and DOCX extraction is available for manual uploads; automatic folder processing remains `.txt` only. OCR, email ingestion, and file modification are not implemented.
 
 ## Requirements
 
@@ -105,7 +105,7 @@ Alternatively:
 python main.py
 ```
 
-The app binds to `127.0.0.1` by default and is available only on the local machine. Use the local URL printed by Streamlit. Use **Analyze document** to upload a `.txt` file or paste text. After analysis, inspect the Overview, Daily briefing, Tasks, and History sections. Task changes update the task record while preserving the original extracted analysis.
+The app binds to `127.0.0.1` by default and is available only on the local machine. Use the local URL printed by Streamlit. Use **Analyze document** to upload a `.txt`, `.pdf`, or `.docx` file or paste text. Uploaded files are size-checked and extracted in memory; a text preview is shown before analysis. PDF extraction requires selectable text—scanned PDFs that need OCR are not supported. DOCX extraction includes paragraphs and tables in document order. The original upload filename is used as the default analysis title. After analysis, inspect the Overview, Daily briefing, Tasks, and History sections. Task changes update the task record while preserving the original extracted analysis.
 
 ## Automatic folder processing
 
@@ -126,13 +126,13 @@ Ollama connection/HTTP and invalid structured-output failures are retried with e
 
 ## Daily briefing
 
-The **Daily briefing** calculates task counts from SQLite. It shows pending and completed tasks, recent analyses and recorded blockers, activity totals, and deadlines with explicit full dates. ISO dates and written month/day/year dates can be classified as upcoming or overdue. Relative wording (such as “tomorrow”), weekday-only values, yearless dates, and ambiguous numeric dates remain unresolved; original deadline text is preserved. The app does not ask the model to compute statistics or guess dates. Task source-analysis identifiers can be opened from Tasks or History.
+The **Daily briefing** calculates task counts from SQLite. It shows pending and completed tasks, recent analyses and recorded blockers, activity totals, and deadlines with explicit full dates. ISO dates and written month/day/year dates can be classified as upcoming or overdue. Relative wording (such as “tomorrow”), weekday-only values, yearless dates, and ambiguous numeric dates remain unresolved; original deadline text is preserved. The app does not ask the model to compute statistics or guess dates. Task source-analysis identifiers can be opened from Tasks or History. When an analysis has no extracted tasks, events, or blockers, the app shows a review notice; empty results may be valid, but the model may also have missed relevant information.
 
 ## Database and privacy
 
 By default, Sloth AI creates `data/sloth_ai.db` when it starts. It stores analysis results, extracted tasks, task status, and original source text so a saved analysis can be revisited. Automatic processing additionally stores the configured folder path, relative filenames, file hashes, sizes, timestamps, processing outcomes, and error categories. Choose a secure local location with `DATABASE_PATH` if the source documents are sensitive. The database and SQLite sidecar files are excluded from Git.
 
-Document text is sent only to the configured Ollama endpoint. With the default URL, that endpoint is on the same machine. The application does not call hosted AI APIs, send analytics, log document bodies/prompts, execute document instructions, invoke model tools, or modify user files. Manual analysis reads only a document explicitly selected or pasted by the user; the separate worker reads only `.txt` files in the configured folder. Local execution is not itself a security guarantee; protect the device, Ollama endpoint, input folder, and database appropriately.
+Document text is sent only to the configured Ollama endpoint. With the default URL, that endpoint is on the same machine. The application does not call hosted AI APIs, send analytics, log document bodies/prompts, execute document instructions, invoke model tools, or modify user files. Manual analysis reads only a document explicitly selected or pasted by the user; PDF/DOCX parsing occurs locally in memory. The separate worker reads only `.txt` files in the configured folder. Local execution is not itself a security guarantee; protect the device, Ollama endpoint, input folder, and database appropriately.
 
 Initial model downloads require an internet connection. After setup, inference can run locally, but this project has not been certified for fully offline operation.
 
@@ -141,10 +141,10 @@ Initial model downloads require an internet connection. After setup, inference c
 Tests mock model calls and do not require an Ollama process:
 
 ```bash
-python -m pytest
+python -m pytest -q
 ```
 
-Coverage includes configuration validation, model availability and HTTP failures, malformed structured output and its bounded retry, input validation, persistence and rollback, task status changes, polling and hash de-duplication, changed files, write stability, bounded retries, duplicate claims, worker shutdown, and deadline classification. The automated tests mock AI interactions and do not require Ollama.
+Coverage includes TXT/PDF/DOCX extraction and upload workflows, empty-result feedback, configuration validation, model availability and HTTP failures, malformed structured output and its bounded retry, input validation, persistence and rollback, task status changes, analysis history, polling and hash de-duplication, changed files, write stability, bounded retries, duplicate claims, worker shutdown, email-analysis compatibility, and deadline classification. The automated tests mock AI interactions and do not require Ollama.
 
 ## Troubleshooting
 
@@ -152,7 +152,7 @@ Coverage includes configuration validation, model availability and HTTP failures
 - **Model not found:** Run `ollama pull <model-name>` or update `OLLAMA_MODEL` to an installed model. Startup never downloads it automatically.
 - **Request timed out:** Increase `OLLAMA_TIMEOUT_SECONDS` or use a smaller model.
 - **Invalid analysis output:** The app makes one schema-guided correction attempt. If that also fails, retry or choose another model; no invalid analysis is persisted.
-- **Text file rejected:** Only UTF-8 `.txt` uploads are supported. Paste text or convert the document to plain text first.
+- **Document upload rejected:** Upload a UTF-8 `.txt`, `.pdf`, or `.docx` file within the configured size limit. Scanned PDFs need OCR, which is not supported.
 - **Database cannot be opened:** Check that `DATABASE_PATH` points to a writable directory and that the file is not locked or corrupted.
 - **Python imports fail:** Run commands from the project root with the project virtual environment activated.
 
@@ -164,9 +164,9 @@ Local models consume system memory and compute; smaller models may extract infor
 
 ## Known limitations and roadmap
 
-Automatic processing is a lightweight poller, not an always-on OS service. It runs only while its separate worker process is alive. Abrupt termination can leave a worker status marked running until its heartbeat is stale. The settle check uses filesystem size and modification time; filesystems that do not update those reliably can delay change detection. Automatic processing supports `.txt` only. The briefing leaves relative and ambiguous dates unresolved. PDF/DOCX extraction, cross-document search, email ingestion, external integrations, and file organization are not implemented. Sloth AI does not automatically create calendar events or perform actions.
+Automatic processing is a lightweight poller, not an always-on OS service. It runs only while its separate worker process is alive. Abrupt termination can leave a worker status marked running until its heartbeat is stale. The settle check uses filesystem size and modification time; filesystems that do not update those reliably can delay change detection. Automatic processing supports `.txt` only. The briefing leaves relative and ambiguous dates unresolved. OCR, cross-document search, email ingestion, external integrations, and file organization are not implemented. Sloth AI does not automatically create calendar events or perform actions.
 
-Possible future work includes PDF/DOCX and Markdown ingestion, document classification and cross-document summaries, deadline tracking and daily briefings, inbox processing, preview-based file organization, scheduled workflows, additional local model providers, and retrieval-augmented generation. Any consequential automation should require explicit user approval and offer a recoverable preview.
+Possible future work includes Markdown ingestion, document classification and cross-document summaries, inbox processing, preview-based file organization, scheduled workflows, additional local model providers, and retrieval-augmented generation. Any consequential automation should require explicit user approval and offer a recoverable preview.
 
 ## Model licenses
 

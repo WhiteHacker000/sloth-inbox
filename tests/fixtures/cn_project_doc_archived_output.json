@@ -1,0 +1,65 @@
+{
+  "analysis_title": "CN_Project_Doc.pdf",
+  "created_at": "2026-10-25T18:24:18.230144+00:00",
+  "source_characters": 22300,
+  "summary": "The project evaluation is structured into two phases, each with specific tasks and deliverables. The evaluation is designed to ensure that students understand and can demonstrate the functionality, resilience, and integration of various components in their network setup. Below is a detailed breakdown of each phase and task, along with expected observations and explanations. The student should be ready with all the deliverables as specified in the project documentation. The evaluation is divided,",
+  "tasks": [
+    {
+      "description": "Topology, ping, DNS records, client resolver setup",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "HTTP/REST Backends + Reverse Proxy + Load Balancing",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "HTTPS/TLS correctness and explanation",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "Packet analysis and protocol flow evidence",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "HTTP caching and transport layer understanding",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "Backup DNS, TTL behavior, HA failover demonstration",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "Service isolation and edge migration",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "Troubleshooting challenge",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    },
+    {
+      "description": "Final Report Quality and Documentation",
+      "owner": null,
+      "deadline_text": null,
+      "evidence": null
+    }
+  ],
+  "events": [],
+  "potential_blockers": [],
+  "source_title": null
+}

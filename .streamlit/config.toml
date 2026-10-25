@@ -3,3 +3,25 @@ address = "127.0.0.1"
 
 [browser]
 gatherUsageStats = false
+
+[theme]
+base = "dark"
+primaryColor = "#55c7c2"
+backgroundColor = "#171b1e"
+secondaryBackgroundColor = "#202629"
+textColor = "#e7eeec"
+font = "sans-serif"
+headingFont = "sans-serif"
+baseRadius = "medium"
+borderColor = "#343d40"
+showWidgetBorder = true
+greenColor = "#71d7a0"
+greenBackgroundColor = "#19352b"
+greenTextColor = "#a4efc2"
+blueColor = "#63c8d2"
+violetColor = "#b394ed"
+redColor = "#e28b82"
+
+[theme.sidebar]
+backgroundColor = "#1b2023"
+secondaryBackgroundColor = "#22292c"

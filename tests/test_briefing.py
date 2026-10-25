@@ -14,6 +14,9 @@ def test_deadline_parser_requires_complete_unambiguous_date() -> None:
     assert parse_explicit_deadline("Friday") is None
     assert parse_explicit_deadline("10/11/2026") is None
     assert parse_explicit_deadline("October 2026") is None
+    assert parse_explicit_deadline("Blocker") is None
+    assert parse_explicit_deadline("2026-02-30") is None
+    assert parse_explicit_deadline("02/30/2026") is None
 
 
 def test_briefing_counts_and_deadlines_come_from_database(
