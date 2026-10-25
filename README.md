@@ -188,3 +188,9 @@ Possible future work includes Markdown ingestion, document classification and cr
 ## Model licenses
 
 Ollama distributes model packages, but the license and permitted uses depend on the selected model and its upstream publisher. Check the model card and license for the exact model and version you download; the Sloth AI project does not grant rights to model weights.
+
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+Third-party dependencies and AI models may be subject to their own licenses and terms.
