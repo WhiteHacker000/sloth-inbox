@@ -1,6 +1,64 @@
 import json
+import logging
+from typing import Any, Protocol
+
+from pydantic import ValidationError
 
 from backend.ai import ask_qwen
+from backend.prompts import (
+    DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
+    correction_prompt,
+    document_analysis_prompt,
+)
+from backend.schemas import DocumentAnalysis
+
+logger = logging.getLogger(__name__)
+
+
+class TextGenerator(Protocol):
+    def generate(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        json_schema: dict[str, Any] | None = None,
+    ) -> str: ...
+
+
+class AnalysisOutputError(ValueError):
+    """Raised when the model cannot produce a valid analysis after one retry."""
+
+
+def analyze_document(
+    text: str,
+    client: TextGenerator,
+    title: str | None = None,
+) -> DocumentAnalysis:
+    prompt = document_analysis_prompt(text, title)
+    schema: dict[str, Any] = DocumentAnalysis.model_json_schema()
+    response = client.generate(
+        prompt,
+        system_prompt=DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
+        json_schema=schema,
+    )
+
+    try:
+        return DocumentAnalysis.model_validate_json(response)
+    except (ValidationError, ValueError):
+        logger.warning("Model output failed document-analysis validation; retrying once.")
+
+    try:
+        corrected_response = client.generate(
+            correction_prompt(prompt, response),
+            system_prompt=DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
+            json_schema=schema,
+        )
+        return DocumentAnalysis.model_validate_json(corrected_response)
+    except (ValidationError, ValueError) as retry_error:
+        raise AnalysisOutputError(
+            "The model returned invalid analysis data after one correction attempt. "
+            "Please retry or try a different compatible model."
+        ) from retry_error
 
 
 def analyze_email(email: dict) -> dict:
