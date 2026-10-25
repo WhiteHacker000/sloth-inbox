@@ -1,5 +1,7 @@
 # Sloth AI 🦥
 
+[![Tests](https://github.com/WhiteHacker000/sloth-inbox/actions/workflows/tests.yml/badge.svg)](https://github.com/WhiteHacker000/sloth-inbox/actions/workflows/tests.yml)
+
 Sloth AI is a local-first document-intelligence assistant. It uses an open-weight model through Ollama to summarize plain-text documents and extract tasks, explicitly stated events, and potential blockers. Analyses, source text, and task status are saved in a local SQLite database.
 
 **Do less. Get more done.**
@@ -48,7 +50,7 @@ The document service, analyzer, model client, and repository are independent of 
 
 ## Requirements
 
-- Python 3.11 or newer (the current project environment was verified with Python 3.14).
+- Python 3.12 or newer (the current project environment was verified with Python 3.14).
 - Ollama installed and running locally.
 - A compatible Ollama model installed manually. The default is `qwen2.5:3b`.
 - Hardware sufficient to run your selected model. Memory and speed requirements vary by model and quantization.
@@ -107,6 +109,15 @@ python main.py
 
 The app binds to `127.0.0.1` by default and is available only on the local machine. Use the local URL printed by Streamlit. Use **Analyze document** to upload a `.txt`, `.pdf`, or `.docx` file or paste text. Uploaded files are size-checked and extracted in memory; a text preview is shown before analysis. PDF extraction requires selectable text—scanned PDFs that need OCR are not supported. DOCX extraction includes paragraphs and tables in document order. The original upload filename is used as the default analysis title. After analysis, inspect the Overview, Daily briefing, Tasks, and History sections. Task changes update the task record while preserving the original extracted analysis.
 
+## Deployment scope
+
+The supported setup runs Streamlit, Ollama, and SQLite locally on the same
+machine. The app uses local Ollama inference by default and does not fall back
+to a hosted AI service. Public or cloud deployment is not supported by this
+project: authentication, remote inference, and remote persistent storage are
+not provided. Do not expose the Ollama API or the unauthenticated Streamlit app
+to the public internet.
+
 ## Automatic folder processing
 
 In the **Automation** view, enter and save an existing folder path, or set `DOCUMENT_INPUT_DIR` in `.env`. A folder saved in the UI is stored in local SQLite and takes precedence over `.env`; use **Use folder from .env instead** to remove the saved override. The configured directory is never created automatically. Only `.txt` files are supported. Subdirectories are ignored unless `DOCUMENT_RECURSIVE=true`.
@@ -145,6 +156,12 @@ python -m pytest -q
 ```
 
 Coverage includes TXT/PDF/DOCX extraction and upload workflows, empty-result feedback, configuration validation, model availability and HTTP failures, malformed structured output and its bounded retry, input validation, persistence and rollback, task status changes, analysis history, polling and hash de-duplication, changed files, write stability, bounded retries, duplicate claims, worker shutdown, email-analysis compatibility, and deadline classification. The automated tests mock AI interactions and do not require Ollama.
+
+The GitHub Actions workflow runs the tests and compilation check with Python
+3.14 for pushes to `main` and pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the contribution workflow and project-specific privacy requirements. This
+repository does not currently include a software license; contact the
+maintainers before redistributing or reusing the code.
 
 ## Troubleshooting
 
