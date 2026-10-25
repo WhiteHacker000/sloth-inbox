@@ -1,0 +1,30 @@
+[
+  {
+    "id": "email_001",
+    "sender": "manager@example.com",
+    "subject": "Project report due tomorrow",
+    "received_at": "2026-10-21T09:00:00",
+    "body": "Please submit the final project report by 10 AM tomorrow."
+  },
+  {
+    "id": "email_002",
+    "sender": "teammate@example.com",
+    "subject": "Frontend integration complete",
+    "received_at": "2026-10-21T10:00:00",
+    "body": "The frontend integration is complete. Backend testing remains incomplete. We expect testing to finish by Friday."
+  },
+  {
+    "id": "email_003",
+    "sender": "organizer@example.com",
+    "subject": "Project review meeting",
+    "received_at": "2026-10-21T11:00:00",
+    "body": "The project review meeting is scheduled for tomorrow at 2 PM. Please confirm your attendance."
+  },
+  {
+    "id": "email_004",
+    "sender": "newsletter@example.com",
+    "subject": "Weekly technology newsletter",
+    "received_at": "2026-10-21T12:00:00",
+    "body": "Here are this week's technology articles and community updates."
+  }
+]
