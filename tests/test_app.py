@@ -34,6 +34,59 @@ def test_local_model_card_hides_endpoint_and_model_name(
     assert all("qwen2.5:3b" not in caption.value for caption in app.caption)
 
 
+def test_gemma_sidebar_selection_is_used_for_document_analysis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "gemma.db"))
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5:3b")
+    monkeypatch.setattr(OllamaClient, "ensure_model_available", lambda self: None)
+    model_calls: list[str] = []
+    response = json.dumps(
+        {
+            "summary": "Configure DNS.",
+            "tasks": [
+                {
+                    "description": "Configure DNS",
+                    "evidence": "Configure DNS.",
+                }
+            ],
+            "events": [],
+            "potential_blockers": [],
+        }
+    )
+
+    def generate(
+        self: OllamaClient,
+        prompt: str,
+        **kwargs: object,
+    ) -> str:
+        model_calls.append(self.settings.ollama_model)
+        return response
+
+    monkeypatch.setattr(OllamaClient, "generate", generate)
+    app = AppTest.from_file(str(Path(__file__).parents[1] / "app.py")).run(
+        timeout=60
+    )
+
+    model_selectbox = next(
+        widget for widget in app.selectbox if widget.label == "Ollama model"
+    )
+    model_selectbox.select("gemma3:1b").run(timeout=60)
+    app.text_area[0].set_value("Configure DNS.").run()
+    analyze_button = next(
+        button for button in app.button if button.label == "Analyze document"
+    )
+    app = analyze_button.click().run(timeout=60)
+
+    assert not app.exception
+    assert model_calls == ["gemma3:1b"]
+    assert any(
+        success.value == "Analysis completed and saved locally."
+        for success in app.success
+    )
+
+
 @pytest.mark.parametrize(
     ("error", "expected_message"),
     [

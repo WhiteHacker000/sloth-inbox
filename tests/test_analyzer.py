@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -113,6 +114,58 @@ def test_analyze_document_retries_invalid_output_once() -> None:
     assert "previous response" in client.prompts[1]
 
 
+@pytest.mark.parametrize(
+    ("invalid_response", "category"),
+    [
+        ("not JSON", "malformed_json"),
+        (
+            '```json\n{"summary":"A summary.","tasks":[],"events":[],'
+            '"potential_blockers":[]}\n```',
+            "markdown_code_fence",
+        ),
+        (
+            '{"tasks":[],"events":[],"potential_blockers":[]}',
+            "missing_required_field",
+        ),
+        (
+            '{"summary":"A summary.","task":[],"events":[],"potential_blockers":[]}',
+            "unexpected_field",
+        ),
+        (
+            '{"summary":"A summary.","tasks":"not a list","events":[],'
+            '"potential_blockers":[]}',
+            "incorrect_field_type",
+        ),
+        (
+            '{"summary":"A summary.","tasks":[{"description":"Submit report",'
+            '"priority":"critical"}],"events":[],"potential_blockers":[]}',
+            "unsupported_enum_value",
+        ),
+        (
+            '{"summary":"A summary.","tasks":null,"events":[],'
+            '"potential_blockers":[]}',
+            "incorrect_field_type",
+        ),
+    ],
+)
+def test_validation_diagnostics_classify_response_without_logging_payload(
+    invalid_response: str,
+    category: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+    client = FakeClient([invalid_response, VALID_RESPONSE])
+
+    result = analyze_document("Submit the final report by tomorrow.", client)
+
+    assert result.tasks[0].description == "Submit the final report"
+    assert f"category={category}" in caplog.text
+    assert "stage=initial_validation" in caplog.text
+    assert "outcome=success" in caplog.text
+    assert invalid_response not in caplog.text
+    assert "Submit the final report by tomorrow." not in caplog.text
+
+
 def test_unattributed_dates_are_corrected_before_analysis_is_returned() -> None:
     source = (
         "Configure the DNS resolver on all client machines. "
@@ -184,6 +237,76 @@ def test_unattributed_dates_are_corrected_before_analysis_is_returned() -> None:
     )
 
 
+def test_repeated_unsupported_gemma_event_date_is_dropped_safely(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = "Configure the local DNS resolver."
+    response = json.dumps(
+        {
+            "summary": "Configure the local DNS resolver.",
+            "tasks": [
+                {
+                    "description": "Configure the local DNS resolver",
+                    "evidence": source,
+                }
+            ],
+            "events": [
+                {
+                    "description": "Project demonstration",
+                    "date_text": "tomorrow",
+                    "evidence": "The demonstration is scheduled for tomorrow.",
+                }
+            ],
+            "potential_blockers": [],
+        }
+    )
+    client = FakeClient([response, response])
+    client.settings = type("ModelSettings", (), {"ollama_model": "gemma3:1b"})()
+
+    result = analyze_document(source, client)
+
+    assert len(client.prompts) == 2
+    assert "omit that event instead of guessing" in client.prompts[1]
+    assert [task.description for task in result.tasks] == [
+        "Configure the local DNS resolver"
+    ]
+    assert result.events == []
+    assert result.potential_blockers == []
+    assert (
+        "outcome=partial category=unsupported_event_date dropped_events=1"
+        in caplog.text
+    )
+    assert "The demonstration is scheduled for tomorrow." not in caplog.text
+
+
+def test_event_without_evidence_recovers_matching_source_statement(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = "The project demonstration is scheduled for October 28, 2026."
+    response = json.dumps(
+        {
+            "summary": "A project demonstration is scheduled.",
+            "tasks": [],
+            "events": [
+                {
+                    "description": "Project demonstration",
+                    "date_text": "October 28, 2026",
+                }
+            ],
+            "potential_blockers": [],
+        }
+    )
+    client = FakeClient([response])
+    client.settings = type("ModelSettings", (), {"ollama_model": "gemma3:1b"})()
+
+    result = analyze_document(source, client)
+
+    assert len(client.prompts) == 1
+    assert len(result.events) == 1
+    assert result.events[0].evidence == source
+    assert "outcome=partial" not in caplog.text
+
+
 def test_explicit_task_deadline_omission_is_recovered_from_source_evidence() -> None:
     source = "Submit the final report by October 27, 2026."
     missing_deadline = json.dumps(
@@ -234,6 +357,21 @@ def test_analyze_document_raises_after_one_invalid_retry() -> None:
     with pytest.raises(AnalysisOutputError, match="one correction attempt"):
         analyze_document("Text", client)
     assert len(client.prompts) == 2
+
+
+def test_failed_retry_logs_model_stage_and_category_without_content(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = FakeClient(["not JSON", "private-source-marker"])
+    client.settings = type("ModelSettings", (), {"ollama_model": "gemma3:1b"})()
+
+    with pytest.raises(AnalysisOutputError, match="one correction attempt"):
+        analyze_document("private-document-marker", client)
+
+    assert "model=gemma3:1b" in caplog.text
+    assert "stage=correction outcome=failure category=malformed_json" in caplog.text
+    assert "private-source-marker" not in caplog.text
+    assert "private-document-marker" not in caplog.text
 
 
 def test_valid_schema_cannot_prove_source_task_completeness() -> None:

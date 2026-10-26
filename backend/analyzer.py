@@ -83,6 +83,91 @@ class AnalysisOutputError(ValueError):
     """Raised when the model cannot produce a valid analysis after one retry."""
 
 
+def _validation_failure_details(
+    error: ValidationError | ValueError,
+    response: str,
+) -> tuple[str, list[str]]:
+    if isinstance(error, ValidationError):
+        validation_errors = error.errors(include_input=False)
+        error_types = {str(item.get("type", "")) for item in validation_errors}
+        fields = sorted(
+            {
+                ".".join(str(part) for part in item.get("loc", ()))
+                for item in validation_errors
+                if item.get("loc")
+            }
+        )
+        if "json_invalid" in error_types:
+            category = (
+                "markdown_code_fence"
+                if response.lstrip().startswith("```")
+                else "malformed_json"
+            )
+        elif "missing" in error_types:
+            category = "missing_required_field"
+        elif "extra_forbidden" in error_types:
+            category = "unexpected_field"
+        elif "literal_error" in error_types:
+            category = "unsupported_enum_value"
+        elif any(error_type.endswith("_type") for error_type in error_types):
+            category = "incorrect_field_type"
+        else:
+            category = "schema_validation"
+        return category, fields
+
+    message = str(error).casefold()
+    if "event date" in message:
+        return "date_source_grounding", ["events.date_text", "events.evidence"]
+    if "task deadline" in message:
+        return "date_source_grounding", ["tasks.deadline_text", "tasks.evidence"]
+    if "deadline" in message or "date" in message:
+        return "date_source_grounding", []
+    if "blocker" in message:
+        return "blocker_validation", []
+    return "source_grounding", []
+
+
+def _retain_grounded_events(
+    analysis: DocumentAnalysis,
+    source_text: str,
+) -> tuple[DocumentAnalysis, int]:
+    normalized_source = _normalized_source_fragment(source_text)
+    grounded_events = []
+    dropped_events = 0
+    for event in analysis.events:
+        evidence = event.evidence
+        if (
+            evidence is None
+            or _normalized_source_fragment(evidence) not in normalized_source
+            or _normalized_source_fragment(event.date_text)
+            not in _normalized_source_fragment(evidence)
+        ):
+            evidence = _source_evidence_for_date(
+                source_text,
+                event.date_text,
+                event.description,
+            )
+        if evidence is None:
+            dropped_events += 1
+        else:
+            grounded_events.append(event.model_copy(update={"evidence": evidence}))
+    return analysis.model_copy(update={"events": grounded_events}), dropped_events
+
+
+def _parse_analysis_response(
+    response: str,
+    source_text: str,
+) -> DocumentAnalysis:
+    analysis = DocumentAnalysis.model_validate_json(response)
+    return _validate_date_evidence(analysis, source_text)
+
+
+def _model_name(client: TextGenerator) -> str:
+    settings = getattr(client, "settings", None)
+    model = getattr(settings, "ollama_model", None)
+    return model if isinstance(model, str) else "unknown"
+
+
 def should_review_empty_extraction(
     source_text: str,
     analysis: DocumentAnalysis,
@@ -222,6 +307,8 @@ def analyze_document(
     client: TextGenerator,
     title: str | None = None,
 ) -> DocumentAnalysis:
+    model = _model_name(client)
+    logger.info("Document analysis started model=%s", model)
     prompt = document_analysis_prompt(text, title)
     schema: dict[str, Any] = DocumentAnalysis.model_json_schema()
     response = client.generate(
@@ -231,11 +318,15 @@ def analyze_document(
     )
 
     try:
-        analysis = DocumentAnalysis.model_validate_json(response)
-        analysis = _validate_date_evidence(analysis, text)
+        analysis = _parse_analysis_response(response, text)
     except (ValidationError, ValueError) as validation_error:
+        category, fields = _validation_failure_details(validation_error, response)
         logger.warning(
-            "Model output failed document-analysis or source-grounding checks; retrying once."
+            "Document analysis response rejected model=%s stage=initial_validation "
+            "category=%s fields=%s; retrying once.",
+            model,
+            category,
+            fields,
         )
         validation_feedback = (
             str(validation_error)
@@ -244,11 +335,18 @@ def analyze_document(
             else "Return a schema-valid response with dates and evidence copied exactly "
             "from the corresponding source item."
         )
+        if "event date" in validation_feedback.casefold():
+            validation_feedback += (
+                " If an event date cannot be copied from evidence in the same source "
+                "statement, omit that event instead of guessing."
+            )
     else:
         if not should_review_empty_extraction(text, analysis):
             return analysis
         logger.warning(
-            "Model returned no extracted items despite source action cues; reviewing once."
+            "Document analysis returned empty extraction despite action cues "
+            "model=%s stage=empty_extraction_review; reviewing once.",
+            model,
         )
         review_response = client.generate(
             empty_extraction_review_prompt(text, title),
@@ -256,9 +354,25 @@ def analyze_document(
             json_schema=schema,
         )
         try:
-            reviewed_analysis = DocumentAnalysis.model_validate_json(review_response)
-            return _validate_date_evidence(reviewed_analysis, text)
+            reviewed_analysis = _parse_analysis_response(review_response, text)
+            logger.info(
+                "Document analysis retry completed model=%s stage=empty_extraction_review "
+                "outcome=success",
+                model,
+            )
+            return reviewed_analysis
         except (ValidationError, ValueError) as review_error:
+            category, fields = _validation_failure_details(
+                review_error,
+                review_response,
+            )
+            logger.warning(
+                "Document analysis retry completed model=%s stage=empty_extraction_review "
+                "outcome=failure category=%s fields=%s",
+                model,
+                category,
+                fields,
+            )
             raise AnalysisOutputError(
                 "The model returned invalid or unsupported analysis data after one "
                 "empty-extraction review. Please retry or review the source manually."
@@ -270,13 +384,76 @@ def analyze_document(
             system_prompt=DOCUMENT_ANALYSIS_SYSTEM_PROMPT,
             json_schema=schema,
         )
-        analysis = DocumentAnalysis.model_validate_json(corrected_response)
-        return _validate_date_evidence(analysis, text)
+        analysis = _parse_analysis_response(corrected_response, text)
     except (ValidationError, ValueError) as retry_error:
+        category, fields = _validation_failure_details(
+            retry_error,
+            corrected_response,
+        )
+        if (
+            isinstance(retry_error, ValueError)
+            and not isinstance(retry_error, ValidationError)
+            and "events.date_text" in fields
+        ):
+            try:
+                corrected_analysis = DocumentAnalysis.model_validate_json(
+                    corrected_response
+                )
+                corrected_analysis, dropped_events = _retain_grounded_events(
+                    corrected_analysis,
+                    text,
+                )
+                corrected_analysis = _validate_date_evidence(
+                    corrected_analysis,
+                    text,
+                )
+            except (ValidationError, ValueError) as salvage_error:
+                category, fields = _validation_failure_details(
+                    salvage_error,
+                    corrected_response,
+                )
+                logger.warning(
+                    "Document analysis retry completed model=%s stage=correction "
+                    "outcome=failure category=%s fields=%s",
+                    model,
+                    category,
+                    fields,
+                )
+                raise AnalysisOutputError(
+                    "The model returned invalid or unsupported analysis data after one "
+                    "correction attempt. Please retry or try a different compatible model."
+                ) from salvage_error
+            if dropped_events:
+                logger.warning(
+                    "Document analysis retry completed model=%s stage=correction "
+                    "outcome=partial category=unsupported_event_date "
+                    "dropped_events=%s",
+                    model,
+                    dropped_events,
+                )
+            else:
+                logger.info(
+                    "Document analysis retry completed model=%s stage=correction "
+                    "outcome=success category=event_evidence_recovered",
+                    model,
+                )
+            return corrected_analysis
+        logger.warning(
+            "Document analysis retry completed model=%s stage=correction "
+            "outcome=failure category=%s fields=%s",
+            model,
+            category,
+            fields,
+        )
         raise AnalysisOutputError(
             "The model returned invalid or unsupported analysis data after one correction attempt. "
             "Please retry or try a different compatible model."
         ) from retry_error
+    logger.info(
+        "Document analysis retry completed model=%s stage=correction outcome=success",
+        model,
+    )
+    return analysis
 
 
 def analyze_email(email: dict) -> dict:

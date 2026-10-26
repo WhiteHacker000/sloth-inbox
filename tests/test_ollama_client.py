@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 
 import pytest
 import requests
 from requests.exceptions import JSONDecodeError
 
+from backend.analyzer import analyze_document
 from backend.ai import (
     OllamaClient,
     OllamaError,
@@ -14,11 +16,11 @@ from backend.ai import (
 from backend.config import Settings
 
 
-def make_client() -> OllamaClient:
+def make_client(model: str = "qwen2.5:3b") -> OllamaClient:
     return OllamaClient(
         Settings(
             ollama_base_url="http://localhost:11434/",
-            ollama_model="qwen2.5:3b",
+            ollama_model=model,
             ollama_timeout_seconds=12,
             max_document_size_mb=5,
             database_path=Path(":memory:"),
@@ -52,10 +54,48 @@ def test_generates_text_and_sends_schema(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result == '{"ok":true}'
     assert calls[0]["url"] == "http://localhost:11434/api/chat"
     assert calls[0]["json"]["format"] == {"type": "object"}
+    assert calls[0]["json"]["model"] == "qwen2.5:3b"
     assert calls[0]["json"]["think"] is False
     assert "tools" not in calls[0]["json"]
     assert calls[0]["json"]["messages"][0]["content"] == "prompt"
     assert calls[0]["timeout"] == 12
+
+
+def test_configured_gemma_model_is_sent_to_ollama(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+
+    def post(url: str, **kwargs: object) -> FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(
+            {
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "summary": "Configure DNS.",
+                            "tasks": [
+                                {
+                                    "description": "Configure DNS",
+                                    "evidence": "Configure DNS.",
+                                }
+                            ],
+                            "events": [],
+                            "potential_blockers": [],
+                        }
+                    )
+                }
+            }
+        )
+
+    monkeypatch.setattr("backend.ai.requests.post", post)
+
+    result = analyze_document("Configure DNS.", make_client("gemma3:1b"))
+
+    assert result.tasks[0].description == "Configure DNS"
+    assert calls[0]["json"]["model"] == "gemma3:1b"
+    assert calls[0]["url"] == "http://localhost:11434/api/chat"
+    assert "format" in calls[0]["json"]
 
 
 def test_detects_available_and_missing_models(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -73,6 +113,27 @@ def test_detects_available_and_missing_models(monkeypatch: pytest.MonkeyPatch) -
     )
     with pytest.raises(OllamaModelNotFoundError, match="ollama pull qwen2.5:3b"):
         make_client().ensure_model_available()
+
+
+def test_detects_available_and_missing_gemma_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "backend.ai.requests.get",
+        lambda *args, **kwargs: FakeResponse(
+            {"models": [{"name": "gemma3:1b"}]}
+        ),
+    )
+    make_client("gemma3:1b").ensure_model_available()
+
+    monkeypatch.setattr(
+        "backend.ai.requests.get",
+        lambda *args, **kwargs: FakeResponse(
+            {"models": [{"name": "qwen2.5:3b"}]}
+        ),
+    )
+    with pytest.raises(OllamaModelNotFoundError, match="ollama pull gemma3:1b"):
+        make_client("gemma3:1b").ensure_model_available()
 
 
 def test_connection_failure_is_actionable(monkeypatch: pytest.MonkeyPatch) -> None:

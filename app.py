@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -34,6 +35,10 @@ from backend.task_service import TaskService
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+MODEL_OPTIONS = {
+    "qwen2.5:3b": "Qwen 2.5 3B",
+    "gemma3:1b": "Gemma 3 1B",
+}
 
 st.set_page_config(
     page_title="Sloth AI",
@@ -51,7 +56,6 @@ st.caption("Do less. Get more done. Your documents stay on this device.")
 try:
     settings = Settings.from_env()
     repository = DocumentRepository(settings.database_path)
-    client = OllamaClient(settings)
     task_service = TaskService(repository)
 except ConfigurationError as exc:
     st.error(f"Configuration error: {exc}")
@@ -64,6 +68,24 @@ except DatabaseError as exc:
 
 with st.sidebar:
     st.header("Local Model")
+    available_model_tags = list(MODEL_OPTIONS)
+    if settings.ollama_model not in MODEL_OPTIONS:
+        available_model_tags.append(settings.ollama_model)
+    selected_model = st.selectbox(
+        "Ollama model",
+        options=available_model_tags,
+        index=available_model_tags.index(settings.ollama_model),
+        format_func=lambda model: MODEL_OPTIONS.get(
+            model,
+            f"Other (configured): {model}",
+        ),
+        key="ollama-model",
+        help="Choose the local model used for document analysis.",
+    )
+    client = OllamaClient(replace(settings, ollama_model=selected_model))
+    st.caption(
+        "The automatic folder worker uses OLLAMA_MODEL from the environment."
+    )
     try:
         client.ensure_model_available()
     except OllamaModelNotFoundError:

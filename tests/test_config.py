@@ -23,6 +23,16 @@ def test_loads_default_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.database_path == Path("./data/sloth_ai.db")
 
 
+def test_loads_gemma_model_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma3:1b")
+
+    settings = Settings.from_env()
+
+    assert settings.ollama_model == "gemma3:1b"
+
+
 @pytest.mark.parametrize(
     ("name", "value", "message"),
     [

@@ -1,8 +1,12 @@
+import logging
 from typing import Any
 
 import requests
 
 from backend.config import Settings
+
+logger = logging.getLogger(__name__)
+
 
 class OllamaError(RuntimeError):
     """Base error for local Ollama communication failures."""
@@ -83,6 +87,11 @@ class OllamaClient:
         system_prompt: str | None = None,
         json_schema: dict[str, Any] | None = None,
     ) -> str:
+        logger.debug(
+            "Ollama request started model=%s response_format=%s",
+            self.settings.ollama_model,
+            "json_schema" if json_schema is not None else "text",
+        )
         messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -121,10 +130,20 @@ class OllamaClient:
                     f"Model '{self.settings.ollama_model}' is unavailable or not installed. "
                     f"Run `ollama pull {self.settings.ollama_model}`."
                 ) from exc
+            logger.warning(
+                "Ollama request failed model=%s stage=http_response category=http_error "
+                "status=%s",
+                self.settings.ollama_model,
+                status_code,
+            )
             raise OllamaError(
                 f"Ollama returned HTTP {status_code} while generating a response."
             ) from exc
         except requests.exceptions.JSONDecodeError as exc:
+            logger.warning(
+                "Ollama response rejected model=%s stage=http_json category=invalid_json",
+                self.settings.ollama_model,
+            )
             raise OllamaResponseError(
                 "Ollama returned invalid JSON for the generation request."
             ) from exc
@@ -134,10 +153,20 @@ class OllamaClient:
             ) from exc
 
         if not isinstance(result, dict):
+            logger.warning(
+                "Ollama response rejected model=%s stage=response_envelope "
+                "category=unexpected_shape",
+                self.settings.ollama_model,
+            )
             raise OllamaResponseError("Ollama returned an unexpected response.")
         message = result.get("message")
         content = message.get("content") if isinstance(message, dict) else None
         if not isinstance(content, str) or not content.strip():
+            logger.warning(
+                "Ollama response rejected model=%s stage=response_content "
+                "category=missing_or_empty",
+                self.settings.ollama_model,
+            )
             raise OllamaResponseError("Ollama returned an empty response.")
         return content.strip()
 

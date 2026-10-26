@@ -9,7 +9,7 @@ Sloth AI is a local-first document-intelligence assistant. It uses an open-weigh
 ## Implemented features
 
 - Paste text or upload a UTF-8 `.txt`, selectable-text `.pdf`, or `.docx` file (up to the configured size limit).
-- Analyze documents with a locally running Ollama model.
+- Analyze documents with a locally running Ollama model, including Qwen 2.5 3B and Gemma 3 1B.
 - Validate structured results with Pydantic and Ollama's JSON-schema response format.
 - Review schema-valid empty results when the source contains action cues; retry one invalid model response with a corrective prompt, then report a recoverable error.
 - View summaries, tasks, event dates as written, and potential blockers.
@@ -52,7 +52,7 @@ The document service, analyzer, model client, and repository are independent of 
 
 - Python 3.12 or newer (the current project environment was verified with Python 3.14).
 - Ollama installed and running locally.
-- A compatible Ollama model installed manually. The default is `qwen2.5:3b`.
+- A compatible Ollama model installed manually. Supported choices include `qwen2.5:3b` (default) and `gemma3:1b`.
 - Hardware sufficient to run your selected model. Memory and speed requirements vary by model and quantization.
 
 ## Setup
@@ -74,7 +74,18 @@ ollama serve
 ollama pull qwen2.5:3b
 ```
 
-Model downloads are explicit and are never initiated by the application. If you already have another compatible model, set `OLLAMA_MODEL` in `.env` to that installed model instead.
+To use Gemma 3 1B instead, download it explicitly and verify that Ollama can
+run it:
+
+```bash
+ollama pull gemma3:1b
+ollama run gemma3:1b "Reply with exactly: Gemma is ready."
+```
+
+Model downloads are explicit and are never initiated by the application.
+Inference uses the local Ollama service by default; there is no hosted inference
+fallback. The application sends analysis prompts and document text only to the
+configured Ollama endpoint.
 
 ## Configuration
 
@@ -83,7 +94,7 @@ Edit `.env` in the project root:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Local Ollama server base URL |
-| `OLLAMA_MODEL` | `qwen2.5:3b` | Installed model name (for example, `qwen3:4b`) |
+| `OLLAMA_MODEL` | `qwen2.5:3b` | Installed model name, such as `qwen2.5:3b` or `gemma3:1b` |
 | `OLLAMA_TIMEOUT_SECONDS` | `120` | Maximum duration for one model request |
 | `MAX_DOCUMENT_SIZE_MB` | `5` | Maximum UTF-8 document size |
 | `DATABASE_PATH` | `./data/sloth_ai.db` | Local SQLite database file |
@@ -94,6 +105,16 @@ Edit `.env` in the project root:
 | `DOCUMENT_MAX_ATTEMPTS` | `3` | Maximum total attempts per unchanged content hash |
 
 Settings are validated at startup. The application checks Ollama and the configured model and displays an actionable message if either is unavailable. It does not automatically download a missing model. A model/API error or invalid model output is shown as a failure; no fabricated result is saved.
+
+For Gemma, edit `.env` and set `OLLAMA_MODEL=gemma3:1b`. The **Ollama model**
+selector in the Streamlit sidebar can also switch between Qwen 2.5 3B and
+Gemma 3 1B for manual document analysis in the current app session; that choice
+is used for the whole analysis request and does not update `.env`. A model
+already configured through `OLLAMA_MODEL` is selected by default. The separate
+automatic folder worker reads `OLLAMA_MODEL` from the environment and does not
+use the sidebar selection, so set `.env` to `gemma3:1b` if you want the worker
+to use Gemma. Existing prompts, structured response validation, and SQLite
+analysis format are shared by both models; no accuracy advantage is assumed.
 
 ## Run
 
